@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="TrackIt">
+    <output-path>$PROJECT_DIR$/out/artifacts/TrackIt</output-path>
+    <root id="archive" name="TrackIt.jar">
+      <element id="module-output" name="TrackIt" />
+    </root>
+  </artifact>
+</component>

@@ -27,11 +27,15 @@ object TaskMain : Screen {
 
 
     private val displaceMax = 60
-    private val minimalDisplacement = 40
-    private val disturbancePoints = FloatArray(5)
+    private val minimalDisplacement = 15
+    private val disturbancePointCount = 4
+    private var disturbancePoints = FloatArray(disturbancePointCount + 4, {
+        val rnd = Math.random().toFloat() * 2f - 1f // [-1f..1f)
+        rnd * displaceMax + (if (rnd > 0f) minimalDisplacement else -minimalDisplacement)
+    })
     // cosine interpolation, ensure 2 negs and 2 pos
     // displace PLAYER by reference-value-of-current-frame minus reference-value-of-prev-frame
-    private val disturbanceInterval = runtime / disturbancePoints.lastIndex
+    private val disturbanceInterval = runtime / disturbancePointCount
 
     private var prevDisturbance = 0f // used for doing discrete differentiation
 
@@ -49,18 +53,30 @@ object TaskMain : Screen {
 
     lateinit var font: GameFontBase
 
-    init {
-        for (i in 0..3) { // will generate [pos, neg, pos, neg]
-            disturbancePoints[i] = Math.random().toFloat() * displaceMax + if (i % 2 == 0) minimalDisplacement else -minimalDisplacement
-        }
 
-
-        // for 50 % chance, make it [neg, pos, neg, pos]
-        if (Math.random() < 0.5) {
-            disturbancePoints.reverse()
-        }
+    enum class TaskMode {
+        MODE_INIT, MODE_PLAYING, MODE_RESULT
     }
 
+    private var currentMode = TaskMode.MODE_INIT
+
+    init {
+
+        resetGame()
+
+    }
+
+    private fun resetGame() {
+        disturbancePoints = FloatArray(disturbancePointCount + 4, {
+            val rnd = Math.random().toFloat() * 2f - 1f // [-1f..1f)
+            rnd * displaceMax + (if (rnd > 0f) minimalDisplacement else -minimalDisplacement)
+        })
+        dataPoints.clear()
+        runtimeCounter = 0f
+        dataCaptureCounter = 0f
+        startGame = false
+        currentMode = TaskMode.MODE_INIT
+    }
 
     override fun hide() {
         dispose()
@@ -107,16 +123,20 @@ object TaskMain : Screen {
         // TASK MODE
         if (runtimeCounter < runtime && startGame) {
 
+            currentMode = TaskMode.MODE_PLAYING
+
 
             batch.inUse {
                 batch.draw(targetTex, targetPos.toInt().toFloat(), (Gdx.graphics.height + targetTex.height) / 2f)
                 batch.draw(playerTex, playerPos.toInt().toFloat(), (Gdx.graphics.height - targetTex.height) / 2f)
             }
 
-            val newDisturbance = interpolateCosine(
+            val newDisturbance = interpolateHermite(
                     (runtimeCounter % disturbanceInterval) / disturbanceInterval,
                     disturbancePoints[(runtimeCounter / disturbanceInterval).toInt()],
-                    disturbancePoints[minOf((runtimeCounter / disturbanceInterval).toInt() + 1, disturbancePoints.lastIndex)]
+                    disturbancePoints[minOf((runtimeCounter / disturbanceInterval).toInt() + 1, disturbancePoints.lastIndex)],
+                    disturbancePoints[minOf((runtimeCounter / disturbanceInterval).toInt() + 2, disturbancePoints.lastIndex)],
+                    disturbancePoints[minOf((runtimeCounter / disturbanceInterval).toInt() + 3, disturbancePoints.lastIndex)]
             )
             playerPos += newDisturbance - prevDisturbance
 
@@ -139,14 +159,23 @@ object TaskMain : Screen {
         // RESULT MODE
         else if (startGame) {
 
+            currentMode = TaskMode.MODE_RESULT
+
+
             val dataPointCentre = Gdx.graphics.height / 2f
             val pointMargin = 3f
             val pointSize = 2f
             val leftMargin = 8f
 
+            rmseCalculated = false
+
             if (!rmseCalculated) {
                 var errorSum = 0.0
-                dataPoints.forEach { errorSum += Math.pow(it.movement.toDouble() - it.referenceValue, 2.0) }
+                dataPoints.forEach {
+                    val normMovement = it.movement - (Gdx.graphics.width / 2.0)
+
+                    errorSum += Math.pow(normMovement, 2.0)
+                }
 
                 rmse = Math.sqrt(errorSum / dataPoints.size).toFloat()
 
@@ -163,8 +192,8 @@ object TaskMain : Screen {
 
 
                 dataPoints.forEachIndexed { index, controlDataPoints ->
-                    val normMovement = controlDataPoints.movement - (Gdx.graphics.width / 2)
-                    val normDisturbance = controlDataPoints.disturbance - (Gdx.graphics.width / 2)
+                    val normMovement = controlDataPoints.movement - (Gdx.graphics.width / 2f)
+                    val normDisturbance = controlDataPoints.disturbance - (Gdx.graphics.width / 2f)
 
                     shapeRenderer.color = Color.RED
                     shapeRenderer.rect(leftMargin + index * pointMargin, normMovement + dataPointCentre, pointSize, pointSize)
@@ -173,7 +202,7 @@ object TaskMain : Screen {
                     shapeRenderer.rect(leftMargin + index * pointMargin, normDisturbance + dataPointCentre, pointSize, pointSize)
 
                     shapeRenderer.color = Color(0x00cc50ff)
-                    shapeRenderer.rect(leftMargin + index * pointMargin, (normDisturbance + normMovement) + dataPointCentre, pointSize, pointSize)
+                    shapeRenderer.rect(leftMargin + index * pointMargin, -(normDisturbance - normMovement) + dataPointCentre, pointSize, pointSize)
 
                 }
             }
@@ -181,7 +210,12 @@ object TaskMain : Screen {
 
             batch.inUse {
                 batch.color = Color(0x00ccffff)
-                font.draw(batch, "RMS Error: $rmse", 10f, 10f)
+                font.draw(batch, "RMS Error: $rmse", 10f, Gdx.graphics.height - font.lineHeight - 10f)
+
+                batch.color = Color(0x00ff55ff)
+
+                val fontWidth = font.getWidth(Lang["MENU_LABEL_RETURN_MAIN"]).ushr(1).shl(1) // ensure even-ness (as in even number)
+                font.draw(batch, Lang["MENU_LABEL_RETURN_MAIN"], Gdx.graphics.width.minus(fontWidth) / 2f, 10f)
             }
 
         }
@@ -202,11 +236,28 @@ object TaskMain : Screen {
     }
 
 
-    private fun interpolateCosine(scale: Float, startValue: Float, endValue: Float): Float {
+    /*private fun interpolateCosine(scale: Float, startValue: Float, endValue: Float): Float {
         val ft = scale * Math.PI
         val f = (1 - Math.cos(ft)) * 0.5f
 
         return (startValue * (1 - f) + endValue * f).toFloat()
+    }*/
+
+    private fun interpolateHermite(scale: Float, p0: Float, p1: Float, p2: Float, p3: Float, tension: Float = 1f, bias: Float = 0f): Float {
+        val mu2 = scale * scale
+        val mu3 = mu2 * scale
+
+        var m0 = (p1 - p0) * (1f + bias) * (1f - tension) / 2f
+        m0 += (p2 - p1) * (1f + bias) * (1f - tension) / 2f
+        var m1 = (p2 - p1) * (1f + bias) * (1f - tension) / 2f
+        m1 += (p3 - p2) * (1f + bias) * (1f - tension) / 2f
+
+        val a0 = 2 * mu3 - 3 * mu2 + 1
+        val a1 = mu3 - 2 * mu2 + scale
+        val a2 = mu3 - mu2
+        val a3 = -2 * mu3 + 3 * mu2
+
+        return a0 * p1 + a1 * m0 + a2 * m1 + a3 * p2
     }
 
 
@@ -220,7 +271,7 @@ object TaskMain : Screen {
         }
 
         override fun mouseMoved(screenX: Int, screenY: Int): Boolean {
-            if (startGame) {
+            if (currentMode == TaskMode.MODE_PLAYING) {
                 if (oldMouseX == -100) oldMouseX = screenX // init, -100 is an placeholder value
 
                 playerPos -= (oldMouseX - screenX).toFloat()
@@ -251,8 +302,13 @@ object TaskMain : Screen {
             return false
         }
 
-        override fun touchDown(p0: Int, p1: Int, p2: Int, p3: Int): Boolean {
-            if (!startGame) startGame = true
+        override fun touchDown(x: Int, y: Int, pointer: Int, button: Int): Boolean {
+            if (currentMode == TaskMode.MODE_INIT) startGame = true
+
+            // return to main menu
+            else if (currentMode == TaskMode.MODE_RESULT && y >= Gdx.graphics.height - 40) {
+                resetGame()
+            }
 
             return true
         }
