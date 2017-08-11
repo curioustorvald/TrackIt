@@ -294,8 +294,12 @@ object TaskMain : Screen {
             return false
         }
 
-        override fun touchDragged(p0: Int, p1: Int, p2: Int): Boolean {
-            return false
+        override fun touchDragged(x: Int, y: Int, pointer: Int): Boolean {
+            if (currentMode == TaskMode.MODE_PLAYING) {
+                return mouseMoved(x, y)
+            }
+
+            return true
         }
 
         override fun keyDown(p0: Int): Boolean {

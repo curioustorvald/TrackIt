@@ -4,9 +4,7 @@ import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.backends.lwjgl.LwjglApplication;
 import com.badlogic.gdx.backends.lwjgl.LwjglApplicationConfiguration;
-import com.badlogic.gdx.graphics.Texture;
 import net.torvald.terrarum.langpack.Lang;
-import net.torvald.terrarumsansbitmap.gdx.GameFontBase;
 
 /**
  * Reference: http://www.mindreadings.com/ControlDemo/BasicTrack.html
