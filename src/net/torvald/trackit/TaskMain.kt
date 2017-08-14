@@ -3,10 +3,10 @@ package net.torvald.trackit
 import com.badlogic.gdx.Gdx
 import com.badlogic.gdx.InputProcessor
 import com.badlogic.gdx.Screen
-import com.badlogic.gdx.graphics.Color
-import com.badlogic.gdx.graphics.GL20
-import com.badlogic.gdx.graphics.Texture
+import com.badlogic.gdx.graphics.*
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
+import com.badlogic.gdx.graphics.g2d.TextureRegion
+import com.badlogic.gdx.graphics.glutils.ShaderProgram
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer
 import net.torvald.terrarum.langpack.Lang
 import net.torvald.terrarumsansbitmap.gdx.GameFontBase
@@ -15,6 +15,8 @@ object TaskMain : Screen {
 
     private lateinit var targetTex: Texture
     private lateinit var playerTex: Texture
+
+    private lateinit var backGrassTile: Texture
 
     private lateinit var batch: SpriteBatch
     private lateinit var shapeRenderer: ShapeRenderer
@@ -52,6 +54,12 @@ object TaskMain : Screen {
     private var startGame = false
 
     lateinit var font: GameFontBase
+
+
+    private lateinit var tilesQuad: Mesh
+
+
+    private lateinit var scrollShader: ShaderProgram
 
 
     enum class TaskMode {
@@ -92,6 +100,36 @@ object TaskMain : Screen {
         playerTex = Texture(Gdx.files.internal("assets/player.tga"))
 
         font = GameFontBase("assets/fonts")
+
+        backGrassTile = Texture(Gdx.files.internal("assets/background_tile.tga"))
+        backGrassTile.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat)
+
+
+        tilesQuad = Mesh(
+                true, 4, 6,
+                VertexAttribute.Position(),
+                VertexAttribute.ColorUnpacked(),
+                VertexAttribute.TexCoords(0)
+        )
+
+        val tilesW = Gdx.graphics.width.toFloat() / backGrassTile.width
+        val tilesH = Gdx.graphics.height.toFloat() / backGrassTile.height
+
+        tilesQuad.setVertices(floatArrayOf(
+                0f, 0f, 0f, 1f, 1f, 1f, 1f, 0f, tilesH,
+                Gdx.graphics.width.toFloat(), 0f, 0f, 1f, 1f, 1f, 1f, tilesW, tilesH,
+                Gdx.graphics.width.toFloat(), Gdx.graphics.height.toFloat(), 0f, 1f, 1f, 1f, 1f, tilesW, 0f,
+                0f, Gdx.graphics.height.toFloat(), 0f, 1f, 1f, 1f, 1f, 0f, 0f
+        ))
+        tilesQuad.setIndices(shortArrayOf(0, 1, 2, 2, 3, 0))
+
+
+        scrollShader = ShaderProgram(ScrollShaderSingleton.VERT, ScrollShaderSingleton.FRAG)
+
+        if (!scrollShader.isCompiled) {
+            Gdx.app.log("scrollShader", scrollShader.log)
+            System.exit(1)
+        }
     }
 
     private var rmseCalculated = false
@@ -126,10 +164,26 @@ object TaskMain : Screen {
             currentMode = TaskMode.MODE_PLAYING
 
 
+            // DRAW
+
+            // draw and scroll background
+            backGrassTile.bind(0)
+            scrollShader.begin()
+            scrollShader.setUniformf("scroll", 0f, (10f * runtimeCounter) % 1f)
+            scrollShader.setUniformi("u_texture", 0)
+            scrollShader.setUniformMatrix("u_projTrans", batch.projectionMatrix)
+            tilesQuad.render(scrollShader, GL20.GL_TRIANGLES)
+            scrollShader.end()
+
+
             batch.inUse {
+                // draw objects
                 batch.draw(targetTex, targetPos.toInt().toFloat(), (Gdx.graphics.height + targetTex.height) / 2f)
                 batch.draw(playerTex, playerPos.toInt().toFloat(), (Gdx.graphics.height - targetTex.height) / 2f)
             }
+
+
+            // UPDATE
 
             val newDisturbance = interpolateHermite(
                     (runtimeCounter % disturbanceInterval) / disturbanceInterval,
@@ -195,11 +249,11 @@ object TaskMain : Screen {
                     val normMovement = controlDataPoints.movement - (Gdx.graphics.width / 2f)
                     val normDisturbance = controlDataPoints.disturbance - (Gdx.graphics.width / 2f)
 
-                    shapeRenderer.color = Color.RED
-                    shapeRenderer.rect(leftMargin + index * pointMargin, normMovement + dataPointCentre, pointSize, pointSize)
-
                     shapeRenderer.color = Color(0x404040ff)
                     shapeRenderer.rect(leftMargin + index * pointMargin, normDisturbance + dataPointCentre, pointSize, pointSize)
+
+                    shapeRenderer.color = Color.RED
+                    shapeRenderer.rect(leftMargin + index * pointMargin, normMovement + dataPointCentre, pointSize, pointSize)
 
                     shapeRenderer.color = Color(0x00cc50ff)
                     shapeRenderer.rect(leftMargin + index * pointMargin, -(normDisturbance - normMovement) + dataPointCentre, pointSize, pointSize)
