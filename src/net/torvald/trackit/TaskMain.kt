@@ -126,7 +126,7 @@ object TaskMain : Screen {
         backgroundTilesQuad.setIndices(shortArrayOf(0, 1, 2, 2, 3, 0))
 
 
-        scrollShader = ShaderProgram(ScrollShaderSingleton.VERT, ScrollShaderSingleton.FRAG)
+        scrollShader = ShaderProgram(Gdx.files.internal("scroll.vert"), Gdx.files.internal("scroll.frag"))
 
         if (!scrollShader.isCompiled) {
             Gdx.app.log("scrollShader", scrollShader.log)
