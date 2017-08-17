@@ -5,7 +5,6 @@ import com.badlogic.gdx.InputProcessor
 import com.badlogic.gdx.Screen
 import com.badlogic.gdx.graphics.*
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
-import com.badlogic.gdx.graphics.g2d.TextureRegion
 import com.badlogic.gdx.graphics.glutils.ShaderProgram
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer
 import net.torvald.terrarum.langpack.Lang
@@ -13,10 +12,11 @@ import net.torvald.terrarumsansbitmap.gdx.GameFontBase
 
 object TaskMain : Screen {
 
-    private lateinit var targetTex: Texture
+    //private lateinit var targetTex: Texture
     private lateinit var playerTex: Texture
 
     private lateinit var backGrassTile: Texture
+    private lateinit var roadTile: Texture
 
     private lateinit var batch: SpriteBatch
     private lateinit var shapeRenderer: ShapeRenderer
@@ -28,8 +28,8 @@ object TaskMain : Screen {
     private val runtime = 30f // seconds
 
 
-    private val displaceMax = 60
-    private val minimalDisplacement = 15
+    private val displaceMax = 90
+    private val minimalDisplacement = 25
     private val disturbancePointCount = 4
     private var disturbancePoints = FloatArray(disturbancePointCount + 4, {
         val rnd = Math.random().toFloat() * 2f - 1f // [-1f..1f)
@@ -56,7 +56,7 @@ object TaskMain : Screen {
     lateinit var font: GameFontBase
 
 
-    private lateinit var tilesQuad: Mesh
+    private lateinit var backgroundTilesQuad: Mesh
 
 
     private lateinit var scrollShader: ShaderProgram
@@ -96,7 +96,6 @@ object TaskMain : Screen {
 
         Gdx.input.inputProcessor = TrackItInputListener()
 
-        targetTex = Texture(Gdx.files.internal("assets/target.tga"))
         playerTex = Texture(Gdx.files.internal("assets/player.tga"))
 
         font = GameFontBase("assets/fonts")
@@ -104,24 +103,27 @@ object TaskMain : Screen {
         backGrassTile = Texture(Gdx.files.internal("assets/background_tile.tga"))
         backGrassTile.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat)
 
+        roadTile = Texture(Gdx.files.internal("assets/target.tga"))
+        roadTile.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat)
 
-        tilesQuad = Mesh(
+
+        backgroundTilesQuad = Mesh(
                 true, 4, 6,
                 VertexAttribute.Position(),
                 VertexAttribute.ColorUnpacked(),
                 VertexAttribute.TexCoords(0)
         )
 
-        val tilesW = Gdx.graphics.width.toFloat() / backGrassTile.width
-        val tilesH = Gdx.graphics.height.toFloat() / backGrassTile.height
+        val backTilesW = Gdx.graphics.width.toFloat() /  backGrassTile.width
+        val backTilesH = Gdx.graphics.height.toFloat() / backGrassTile.height
 
-        tilesQuad.setVertices(floatArrayOf(
-                0f, 0f, 0f, 1f, 1f, 1f, 1f, 0f, tilesH,
-                Gdx.graphics.width.toFloat(), 0f, 0f, 1f, 1f, 1f, 1f, tilesW, tilesH,
-                Gdx.graphics.width.toFloat(), Gdx.graphics.height.toFloat(), 0f, 1f, 1f, 1f, 1f, tilesW, 0f,
+        backgroundTilesQuad.setVertices(floatArrayOf(
+                0f, 0f, 0f, 1f, 1f, 1f, 1f, 0f, backTilesH,
+                Gdx.graphics.width.toFloat(), 0f, 0f, 1f, 1f, 1f, 1f, backTilesW, backTilesH,
+                Gdx.graphics.width.toFloat(), Gdx.graphics.height.toFloat(), 0f, 1f, 1f, 1f, 1f, backTilesW, 0f,
                 0f, Gdx.graphics.height.toFloat(), 0f, 1f, 1f, 1f, 1f, 0f, 0f
         ))
-        tilesQuad.setIndices(shortArrayOf(0, 1, 2, 2, 3, 0))
+        backgroundTilesQuad.setIndices(shortArrayOf(0, 1, 2, 2, 3, 0))
 
 
         scrollShader = ShaderProgram(ScrollShaderSingleton.VERT, ScrollShaderSingleton.FRAG)
@@ -161,6 +163,8 @@ object TaskMain : Screen {
         // TASK MODE
         if (runtimeCounter < runtime && startGame) {
 
+            val scrollIntensity = 40f
+
             currentMode = TaskMode.MODE_PLAYING
 
 
@@ -169,17 +173,26 @@ object TaskMain : Screen {
             // draw and scroll background
             backGrassTile.bind(0)
             scrollShader.begin()
-            scrollShader.setUniformf("scroll", 0f, (10f * runtimeCounter) % 1f)
+            scrollShader.setUniformf("scroll", 0f, (scrollIntensity * runtimeCounter) % 1f)
             scrollShader.setUniformi("u_texture", 0)
             scrollShader.setUniformMatrix("u_projTrans", batch.projectionMatrix)
-            tilesQuad.render(scrollShader, GL20.GL_TRIANGLES)
+            backgroundTilesQuad.render(scrollShader, GL20.GL_TRIANGLES)
             scrollShader.end()
+
+
+            val tilesNeededToFillScreen = (Gdx.graphics.height / roadTile.height) + 1
+            batch.inUse {
+                val scrollOffset = -(runtimeCounter.times(scrollIntensity * backGrassTile.height) % roadTile.height)
+                for (i in 0..tilesNeededToFillScreen) {
+                    batch.draw(roadTile, (Gdx.graphics.width - roadTile.width) / 2f, scrollOffset + roadTile.height * i)
+                }
+            }
+
 
 
             batch.inUse {
                 // draw objects
-                batch.draw(targetTex, targetPos.toInt().toFloat(), (Gdx.graphics.height + targetTex.height) / 2f)
-                batch.draw(playerTex, playerPos.toInt().toFloat(), (Gdx.graphics.height - targetTex.height) / 2f)
+                batch.draw(playerTex, (playerPos - playerTex.width / 2), (Gdx.graphics.height - playerTex.height) / 2f)
             }
 
 
@@ -285,8 +298,10 @@ object TaskMain : Screen {
     }
 
     override fun dispose() {
-        targetTex.dispose()
         playerTex.dispose()
+
+        backGrassTile.dispose()
+        roadTile.dispose()
     }
 
 
