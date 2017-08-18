@@ -22,14 +22,14 @@ object TaskMain : Screen {
     private lateinit var shapeRenderer: ShapeRenderer
 
 
-    var targetPos = Gdx.graphics.width / 2f // could also make a fun game if the target also moves
+    val targetPos = Gdx.graphics.width / 2f
     var playerPos = Gdx.graphics.width / 2f
 
     private val runtime = 30f // seconds
 
 
-    private val displaceMax = 90
-    private val minimalDisplacement = 25
+    private val displaceMax = 180f
+    private val minimalDisplacement = 120f
     private val disturbancePointCount = 4
     private var disturbancePoints = FloatArray(disturbancePointCount + 4, {
         val rnd = Math.random().toFloat() * 2f - 1f // [-1f..1f)
@@ -74,11 +74,33 @@ object TaskMain : Screen {
 
     }
 
+    private fun rnd(valBefore: Float): Float {
+        val flipProbability = 0.7
+        val flipRnd = Math.random()
+        val rnd = Math.random().toFloat() // [0..1]
+
+        if (flipRnd < flipProbability) {
+            return if (valBefore > 0f) -rnd else rnd // flip sign
+        }
+        else {
+            return if (valBefore > 0f) rnd else -rnd // don't flip sign
+        }
+    }
+
+    private infix fun Float.addOffset(amplitude: Float): Float =
+            if (this < 0.0) this - amplitude
+            else this + amplitude
+
     private fun resetGame() {
-        disturbancePoints = FloatArray(disturbancePointCount + 4, {
-            val rnd = Math.random().toFloat() * 2f - 1f // [-1f..1f)
-            rnd * displaceMax + (if (rnd > 0f) minimalDisplacement else -minimalDisplacement)
-        })
+        disturbancePoints = FloatArray(disturbancePointCount + 4, { 0f })
+        for (it in 2 until disturbancePoints.size) {
+            if (it == 0) {
+                disturbancePoints[0] = 0f //(rnd() * displaceMax) addOffset minimalDisplacement
+            }
+            else {
+                disturbancePoints[it] = disturbancePoints[it - 1] + (rnd(disturbancePoints[it - 1]) * (displaceMax - minimalDisplacement) addOffset minimalDisplacement)
+            }
+        }
         dataPoints.clear()
         runtimeCounter = 0f
         dataCaptureCounter = 0f
