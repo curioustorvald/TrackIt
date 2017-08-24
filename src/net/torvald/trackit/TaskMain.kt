@@ -82,10 +82,12 @@ object TaskMain : Screen {
      * @return random value between -1 to 1
      */
     private fun rnd(valBefore: Float): Float {
-        val flipProbability = 0.7
+        val flipProbability = 1.0//0.7
         val flipRnd = Math.random()
         val rnd = Math.random().toFloat() // [0..1]
 
+        if (valBefore == 0f) return rnd * 2f - 1f // [-1..1]
+        
         if (flipRnd < flipProbability) {
             return if (valBefore > 0f) -rnd else rnd // flip sign
         }
