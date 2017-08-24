@@ -74,6 +74,13 @@ object TaskMain : Screen {
 
     }
 
+    /**
+     * Get random value relative to previous value.
+     *
+     * Will flip the sign of prev value based on predefined probability.
+     *
+     * @return random value between -1 to 1
+     */
     private fun rnd(valBefore: Float): Float {
         val flipProbability = 0.7
         val flipRnd = Math.random()
@@ -123,10 +130,8 @@ object TaskMain : Screen {
         font = GameFontBase("assets/fonts")
 
         backGrassTile = Texture(Gdx.files.internal("assets/background_tile.tga"))
-        backGrassTile.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat)
 
         roadTile = Texture(Gdx.files.internal("assets/target.tga"))
-        roadTile.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat)
 
 
         backgroundTilesQuad = Mesh(

@@ -11,6 +11,6 @@ uniform sampler2D u_texture;
 uniform vec2 scroll; // texcoord
 
 void main() {
-    vec4 pixel = texture2D(u_texture, v_texCoords - scroll);
+    vec4 pixel = texture2D(u_texture, mod(v_texCoords - scroll, 1.0));
     gl_FragColor = vec4(pixel);
 }
